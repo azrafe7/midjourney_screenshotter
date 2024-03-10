@@ -1,5 +1,6 @@
 from playwright.sync_api import sync_playwright
 import settings
+import re
 
 
 if __name__ == "__main__":
@@ -14,7 +15,25 @@ if __name__ == "__main__":
 
     print(f"Going to '{settings.MIDJOURNEY_URL}'...")
 
-    page.goto(settings.MIDJOURNEY_URL, referer="https://google.com")
+    # page.goto(settings.MIDJOURNEY_URL, referer="https://google.com")
+    page.goto("https://www.google.com/search?q=midjourney+feed")
+
+    breakpoint()
+
+    midjourney_anchor = page.locator('a[href^="https://www.midjourney.com/showcase"]').first
+    if not midjourney_anchor.is_visible():
+      breakpoint()
+
+    midjourney_anchor.dispatch_event('click')
+
+    breakpoint()
+
+    curr_url = page.url
+    not_curr_url_regex = re.compile('^(?!' + curr_url + ')')
+
+    # page.goto(midjourney_anchor.get_attribute("href"))
+
+    # first_result_loc = page.locator(
 
     page.wait_for_load_state("load")
 
