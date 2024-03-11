@@ -1,5 +1,5 @@
 
-(async () => {
+return (async () => {
 
   maxAttempts = 1000;
   selector = '.bg-cover';
@@ -9,7 +9,7 @@
   pageScrollElement = document.querySelector('#pageScroll');
 
   // scrollEnd = false;
-  
+
   reachedScrollEndOf = (elem) => {
     const {scrollHeight, scrollTop, clientHeight} = elem;
 
@@ -20,7 +20,7 @@
       return false;
     }
   }
-  
+
   /*
   scrollListener = event => {
     if (reachedScrollEndOf(event.target)) {
@@ -53,7 +53,7 @@
         clearTimeout(failed);
         resolve();
       };
-      
+
       elem.addEventListener("scrollend", scrollEndHandler);
     });
   }
@@ -76,7 +76,17 @@
 
   res = Array.from(bgCoversSet.values()).map((el) => ({href:el.href, style:el.style.backgroundImage}));
   console.log(res);
+
+  // append dummy textarea
+  textAreaElement = document.createElement('textarea');
+  textAreaElement.id = '__hidden_bg_text_area';
+  textAreaElement.style = "display: none; right: 0px; bottom: 0px; width: 600px; height: 300px; font-family: monospace;";
+  textAreaElement.textContent = JSON.stringify(res);
+  // Prevent scrolling to bottom of page in MS Edge
+  textAreaElement.style.position = "fixed";
+  
+  document.body.appendChild(textAreaElement);
+
   return res;
 
 })();
-

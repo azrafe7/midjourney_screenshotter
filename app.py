@@ -1,4 +1,5 @@
 from playwright.sync_api import sync_playwright
+from playwright_stealth import stealth_sync
 import settings
 
 
@@ -10,11 +11,19 @@ if __name__ == "__main__":
     context = browser.new_context(user_agent=settings.user_agent)
     context.set_default_timeout(settings.default_timeout)
 
+    stealth_sync(context)
     page = browser.new_page()
+
+    nav_webdriver = page.evaluate("navigator.webdriver")
+    print(f"navigator.webdriver: {nav_webdriver}")
 
     print(f"Going to '{settings.MIDJOURNEY_URL}'...")
 
-    page.goto(settings.MIDJOURNEY_URL, referer="https://google.com")
+    stealth_sync(page)
+    page.goto(settings.MIDJOURNEY_URL)
+
+    nav_webdriver = page.evaluate("navigator.webdriver")
+    print(f"navigator.webdriver: {nav_webdriver}")
 
     page.wait_for_load_state("load")
 
