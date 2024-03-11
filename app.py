@@ -39,11 +39,12 @@ if __name__ == "__main__":
     with open("get_bg_cover_links.js") as f:
       js_script = f.read()
 
-    breakpoint()
+    # breakpoint()
 
     res = page.evaluate(js_script)
 
-    breakpoint()
+    # breakpoxint()
 
+    print("MAYBE REACHED END AND SCRAPED?!")
 
-    # browser.close()
+    browser.close()
