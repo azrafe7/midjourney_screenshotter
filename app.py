@@ -1,75 +1,90 @@
-# from playwright.sync_api import sync_playwright
-from selenium import webdriver
-import undetected_chromedriver as uc
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from playwright.sync_api import sync_playwright
+from playwright_stealth import stealth_sync
 
+import argparse
 import settings
 import re
+from pathlib import Path
 
 
 if __name__ == "__main__":
+
+  parser = argparse.ArgumentParser()
+  parser.add_argument("-o", "--output", type=str, default=settings.output_folder, help=f"output folder (defaults to settings.output_folder: '{settings.output_folder}')")
+  args = parser.parse_args()
+
+  # override output_folder
+  if args.output:
+    settings.output_folder = args.output
+
+  with sync_playwright() as p:
     print("Launching " + ("Headless " if settings.headless_browser else "") + "Browser...")
 
-    options = webdriver.ChromeOptions()
-    options.add_argument("--disable-extensions")
-    options.add_argument("--disable-extensions")
-    options.headless = settings.headless_browser
-    options.capabilities["timeouts"] = {
-      "implicit": settings.default_timeout,
-      "pageLoad": settings.default_timeout,
-      "script": settings.default_timeout
-    }
+    browser = p.chromium.launch(headless=settings.headless_browser)
+    context = browser.new_context(user_agent=settings.user_agent)
+    context.set_default_timeout(settings.default_timeout)
 
-    # driver = webdriver.Chrome(options=options)
-    driver = uc.Chrome(options=options)
+    # use stealth mode
+    stealth_sync(context)
+    page = context.new_page()
 
     print(f"Going to '{settings.MIDJOURNEY_URL}'...")
 
-    # breakpoint()
+    # stealth_sync(page)
+    page.goto(settings.MIDJOURNEY_URL)
 
-    driver.get(settings.MIDJOURNEY_URL)
-    # driver.get("https://www.google.com/search?q=midjourney+feed")
-    navigator_webdriver = driver.execute_script('return navigator.webdriver')
-    print(f"navigator.webdriver: {navigator_webdriver}")
+    nav_webdriver = page.evaluate("navigator.webdriver")
+    print(f"navigator.webdriver: {nav_webdriver}") # should be None if stealth mode is working
 
-    # breakpoint()
+    page.wait_for_load_state("load")
 
-    # curr_url = page.url
-    # not_curr_url_regex = re.compile('^(?!' + curr_url + ')')
+    page_scroll_selector = '#pageScroll'
+    page.wait_for_selector(page_scroll_selector, state='visible')
+    page_scroll_loc = page.locator(page_scroll_selector).first
 
-    # # page.goto(midjourney_anchor.get_attribute("href"))
+    output_folder = Path(settings.output_folder)
+    output_folder.mkdir(parents=True, exist_ok=True)
+    print(f"Output folder: '{output_folder}'")
 
-    # # first_result_loc = page.locator(
+    screenshot_filename = output_folder / Path("page.png")
+    page.screenshot(path=screenshot_filename)
+    print(f"Saved page screenshot to '{screenshot_filename}'...")
 
-    # page.wait_for_load_state("load")
+    print("Scrolling to collect links...")
 
-    # page_scroll_selector = '#pageScroll'
-    # page.wait_for_selector(page_scroll_selector, state='visible')
-    # page_scroll_loc = page.locator(page_scroll_selector).first
-
-    # screenshot_filename = "page.png"
-    # page.screenshot(path=screenshot_filename)
-    # print(f"Saved screenshot to '{screenshot_filename}'...")
-
+    # inject code to scroll and collect links
     with open("get_bg_cover_links.js") as f:
       js_script = f.read()
 
-    # breakpoint()
+    res = page.evaluate(js_script)
 
-    driver.set_script_timeout(30)
-    res = driver.execute_script(js_script)
+    print("Reached end of page. Creating download links...")
 
-    # breakpoint()
+    # load createDownloadAnchorFor() function
+    with open("create_download_anchor_for.js") as f:
+      js_create_download = f.read()
 
-    wait = WebDriverWait(driver, 5)
-    element_locator = (By.CSS_SELECTOR, '#__hidden_bg_text_area')
-    element = wait.until(EC.presence_of_element_located(element_locator))
+    num_items = len(res)
+    for idx, item in enumerate(res[:]):
+      imgURL = item['urls'][-1]
+      print(f"[{idx+1}/{num_items}] Saving '{imgURL}'...")
 
-    # now `res` is actionable... (or can be grabbed via textarea)
-    print("Scraped:")
-    print(res)
+      download_anchor_id = page.evaluate(js_create_download, [imgURL, None])
+      download_loc = page.locator('#' + download_anchor_id).first
 
-    print()
+      # start waiting for the download
+      with page.expect_download() as download_info:
+        # perform the action that initiates download
+        download_loc.click()
+      download = download_info.value
+
+      # wait for the download process to complete and save the downloaded file
+      filename = output_folder / Path(download.suggested_filename)
+      download.save_as(filename)
+      print(f"Saved to '{filename}'")
+
+    print("")
+    print(f"{num_items} links processed. Exiting...")
+
+    context.close()
+    browser.close()
