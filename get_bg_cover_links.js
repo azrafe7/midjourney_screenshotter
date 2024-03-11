@@ -70,11 +70,17 @@
 
   console.log(`bgCoversSet.size: ${bgCoversSet.size}`);
 
-  // bgCover = Array.from(bgCoversSet.values()).at(-1)
+  url_regex = /url\("([^"]+)"\)/g;
 
-  // regex = /url\("([^"]+)"\)/g;
-
-  res = Array.from(bgCoversSet.values()).map((el) => ({href:el.href, style:el.style.backgroundImage}));
+  bgCovers = Array.from(bgCoversSet.values());
+  
+  res = bgCovers.map((el) => {
+    backgroundImageStyle = el.style.backgroundImage;
+    matches = [...backgroundImageStyle.matchAll(url_regex)];
+    matched_urls = matches.map((m) => m.length > 1 ? m[1] : [])
+    return {href:el.href, style:backgroundImageStyle, urls:matched_urls};
+  });
+  
   console.log(res);
 
   // append dummy textarea
