@@ -1,5 +1,5 @@
 
-return (async () => {
+(async () => {
 
   maxAttempts = 1000;
   selector = '.bg-cover';
