@@ -56,7 +56,7 @@ if __name__ == "__main__":
     with open("get_bg_cover_links.js") as f:
       js_script = f.read()
 
-    res = page.evaluate(js_script)
+    links_info = page.evaluate(js_script)
 
     print("Reached end of page. Creating download links...")
 
@@ -64,10 +64,10 @@ if __name__ == "__main__":
     with open("create_download_anchor_for.js") as f:
       js_create_download = f.read()
 
-    num_items = len(res)
-    for idx, item in enumerate(res[:]):
+    num_items = len(links_info)
+    for idx, item in enumerate(links_info[:]):
       imgURL = item['urls'][-1]
-      print(f"[{idx+1}/{num_items}] Saving '{imgURL}'...")
+      print(f"[{idx+1}/{num_items}] Fetching '{imgURL}'...")
 
       download_anchor_id = page.evaluate(js_create_download, [imgURL, None])
       download_loc = page.locator('#' + download_anchor_id).first

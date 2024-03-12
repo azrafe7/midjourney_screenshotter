@@ -5,12 +5,13 @@
       downloadsContainer = document.createElement('div');
       downloadsContainer.style = "display: initial; left: 0px; top: 0px; font-family: monospace;";
       downloadsContainer.style.position = "fixed";
-      downloadsContainer.classList.add('.downloads-container');
+      downloadsContainer.classList.add('downloads-container');
       document.body.appendChild(downloadsContainer);
     }
     
     let a = document.createElement('a');
 
+    a.style.display = 'block';
     a.setAttribute("target", '_blank');
     a.setAttribute("download", '');
     a.textContent = "download";
