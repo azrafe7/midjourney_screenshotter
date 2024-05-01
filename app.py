@@ -8,12 +8,20 @@ import re
 from pathlib import Path
 import ffmpeg
 
+
+VIEWPORT_WIDTH = 1280
+VIEWPORT_HEIGHT = 720
+
 RESIZE_WIDTH = 1280
 RESIZE_HEIGHT = 720
+
 IMAGE_OFFSET_X = 82
 IMAGE_OFFSET_Y = 84
 IMAGE_WIDTH = 1114
 IMAGE_HEIGHT = 626
+
+MAX_LINKS_TO_PROCESS = 2
+
 FFMPEG_QUIET = True
 
 
@@ -84,7 +92,7 @@ if __name__ == "__main__":
     browser = p.chromium.launch(headless=settings.headless_browser)
     context = browser.new_context(
         user_agent=settings.user_agent, 
-        #viewport=ViewportSize(width=RESIZE_WIDTH, height=RESIZE_HEIGHT)
+        viewport=ViewportSize(width=VIEWPORT_WIDTH, height=VIEWPORT_HEIGHT)
     )
     context.set_default_timeout(settings.default_timeout)
 
@@ -163,7 +171,7 @@ if __name__ == "__main__":
     clip_rect = { "x":IMAGE_OFFSET_X, "y":IMAGE_OFFSET_Y, "width":IMAGE_WIDTH, "height":IMAGE_HEIGHT }
     print(f"Using clip_rect: {clip_rect}")
 
-    num_links_to_process = 2
+    num_links_to_process = MAX_LINKS_TO_PROCESS if MAX_LINKS_TO_PROCESS >= 0 else num_links_to_process
     for idx, item in enumerate(links_to_process[:num_links_to_process]):
 
       ## try to download images directly
