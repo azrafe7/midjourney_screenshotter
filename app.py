@@ -3,17 +3,67 @@ from playwright_stealth import stealth_sync
 
 import argparse
 import settings
+import os
 import re
 from pathlib import Path
 import ffmpeg
 
-RESIZE_WIDTH = 1920
-RESIZE_HEIGHT = 1080
-IMAGE_WIDTH = 1102
-IMAGE_HEIGHT = 620
+RESIZE_WIDTH = 1280
+RESIZE_HEIGHT = 720
+IMAGE_OFFSET_X = 82
+IMAGE_OFFSET_Y = 84
+IMAGE_WIDTH = 1114
+IMAGE_HEIGHT = 626
+FFMPEG_QUIET = True
+
 
 def set_preferred_theme(page, preferred_theme):
     page.locator('html').evaluate('(node, preferred_theme) => { node.classList.remove("dark", "light"); node.classList.add(preferred_theme); }', arg=preferred_theme)
+
+def print_ffmpeg_cmd(cmd):
+    print(f"FFMPEG> " + " ".join(cmd.compile()))
+
+def delete_files(self, files):
+    try:
+        for f in files:
+            os.unlink(f)
+    except FileNotFoundError as e:
+        print("File not found: " + e.filename)
+    except OSError:
+        print("OSError")
+
+def ffmpeg_resize_image(input_file, output_file, width, height):
+    # breakpoint()
+    input_file_path = Path(input_file)
+    output_file_path = Path(output_file)
+    needs_temp_file = input_file_path == output_file_path
+    if needs_temp_file:
+        file_to_replace = output_file_path
+        stem = Path(output_file_path).stem
+        output_file_path = Path(output_file_path).with_stem(stem + '_temp')
+
+    cmd = (
+        ffmpeg.input(input_file_path.as_posix())
+        .filter('scale', width, height)
+        .output(
+            output_file_path.as_posix(),
+            **{
+                "update": "true",
+            },
+        )
+        .overwrite_output()
+    )
+    
+    print(f"Resizing to {width}:{height}...")
+    print_ffmpeg_cmd(cmd)
+    cmd.run(quiet=FFMPEG_QUIET)
+
+    # overwrite original output_file if needed
+    if needs_temp_file:
+        output_file_path.replace(file_to_replace)
+        output_file_path = file_to_replace
+
+    return str(output_file_path)
 
 
 if __name__ == "__main__":
@@ -21,6 +71,8 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument("-o", "--output", type=str, default=settings.output_folder, help=f"output folder (defaults to settings.output_folder: '{settings.output_folder}')")
   args = parser.parse_args()
+
+  # breakpoint()
 
   # override output_folder
   if args.output:
@@ -72,11 +124,6 @@ if __name__ == "__main__":
 
     print("Reached end of page. Creating download links...")
 
-    suggested_filename = f'image_{(0):>03d}.png'
-    screenshot_filename = output_folder / Path(suggested_filename)
-    print(f"Saving page screenshot to '{screenshot_filename}'...")
-    # clip_rect = { "x":0, "y":0, "width":1102, "height":620 }
-    
     # scroll to top and hide scrollbar
     page.evaluate("""
         scrollElem = document.querySelector('#pageScroll');
@@ -95,8 +142,14 @@ if __name__ == "__main__":
         headerDiv.appendChild(div);
     """)
     
+    suggested_filename = f'image_{(0):>03d}.png'
+    screenshot_filename = output_folder / Path(suggested_filename)
+    print(f"Saving page screenshot to '{screenshot_filename}'...")
+    # clip_rect = { "x":0, "y":0, "width":1102, "height":620 }    
+    # breakpoint()
+    # try setting env var PW_TEST_SCREENSHOT_NO_FONTS_READY=1 if it gets stuck taking screenshot
     page.screenshot(path=screenshot_filename)
-    breakpoint()
+    ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT)
 
     # load createDownloadAnchorFor() function
     with open("create_download_anchor_for.js") as f:
@@ -107,10 +160,11 @@ if __name__ == "__main__":
     links_to_process = links_info[:]
     num_links_to_process = len(links_to_process)
 
-    clip_rect = { "x":82, "y":88, "width":IMAGE_WIDTH, "height":IMAGE_HEIGHT }
+    clip_rect = { "x":IMAGE_OFFSET_X, "y":IMAGE_OFFSET_Y, "width":IMAGE_WIDTH, "height":IMAGE_HEIGHT }
     print(f"Using clip_rect: {clip_rect}")
 
-    for idx, item in enumerate(links_to_process):
+    num_links_to_process = 2
+    for idx, item in enumerate(links_to_process[:num_links_to_process]):
 
       ## try to download images directly
       #imgURL = item['urls'][-1]
@@ -136,10 +190,17 @@ if __name__ == "__main__":
       set_preferred_theme(page, preferred_theme)
       page.wait_for_load_state("load")
       
+      if idx == 0:
+          suggested_filename = f'test_page.png'
+          filename = output_folder / Path(suggested_filename)
+          print(f"Saving test screenshot to '{filename}'...")
+          page.screenshot(path=filename)
+      
       suggested_filename = f'image_{(idx + 1):>03d}.png'
       filename = output_folder / Path(suggested_filename)
       print(f"Saving screenshot to '{filename}'...")
       page.screenshot(clip=clip_rect, path=filename)
+      ffmpeg_resize_image(filename, filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT)
 
     print("")
     print(f"{num_links_to_process} links processed. Exiting...")
