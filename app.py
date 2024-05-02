@@ -7,20 +7,24 @@ import os
 import re
 from pathlib import Path
 import ffmpeg
+import json
 
 
-VIEWPORT_WIDTH = 1280
-VIEWPORT_HEIGHT = 720
+VIEWPORT_WIDTH = 1600
+VIEWPORT_HEIGHT = 900
 
-RESIZE_WIDTH = 1280
-RESIZE_HEIGHT = 720
+RESIZE_WIDTH = 1920
+RESIZE_HEIGHT = 1080
+SCALING_KEEP_TEMP = True
+SCALING_ALGO = "lanczos"
 
-IMAGE_OFFSET_X = 82
-IMAGE_OFFSET_Y = 84
-IMAGE_WIDTH = 1114
-IMAGE_HEIGHT = 626
+HIDE_SIDE_BAR = True
+IMAGE_OFFSET_X = 0
+IMAGE_OFFSET_Y = 80
+IMAGE_WIDTH = 1442
+IMAGE_HEIGHT = 810
 
-MAX_LINKS_TO_PROCESS = 2
+MAX_LINKS_TO_PROCESS = 0  # set it to -1 to process them all
 
 FFMPEG_QUIET = True
 
@@ -40,7 +44,7 @@ def delete_files(self, files):
     except OSError:
         print("OSError")
 
-def ffmpeg_resize_image(input_file, output_file, width, height):
+def ffmpeg_resize_image(input_file, output_file, width, height, scaling_algo="bicubic", keep_temp=False):
     # breakpoint()
     input_file_path = Path(input_file)
     output_file_path = Path(output_file)
@@ -57,18 +61,19 @@ def ffmpeg_resize_image(input_file, output_file, width, height):
             output_file_path.as_posix(),
             **{
                 "update": "true",
+                "sws_flags": scaling_algo,
             },
         )
         .overwrite_output()
     )
-    
+
     print(f"Resizing to {width}:{height}...")
     print_ffmpeg_cmd(cmd)
     cmd.run(quiet=FFMPEG_QUIET)
 
     # overwrite original output_file if needed
     if needs_temp_file:
-        output_file_path.replace(file_to_replace)
+        # output_file_path.replace(file_to_replace)
         output_file_path = file_to_replace
 
     return str(output_file_path)
@@ -91,7 +96,7 @@ if __name__ == "__main__":
 
     browser = p.chromium.launch(headless=settings.headless_browser)
     context = browser.new_context(
-        user_agent=settings.user_agent, 
+        user_agent=settings.user_agent,
         viewport=ViewportSize(width=VIEWPORT_WIDTH, height=VIEWPORT_HEIGHT)
     )
     context.set_default_timeout(settings.default_timeout)
@@ -139,38 +144,55 @@ if __name__ == "__main__":
         scrollElem.style.overflowY = 'hidden';
     """)
     # add date string below textArea
-    page.evaluate("""
-        textArea = document.querySelector('textarea');
-        headerDiv = textArea.parentElement.parentElement.parentElement.parentElement;
-        div = document.createElement('div');
-        // div.textContent = 'MidJourney Showcase - assembled by [AzLabs] ' + new Date().toUTCString();
-        dateString = new Date().toUTCString();
-        div.style = 'text-align:center; margin-top: 8px; font-variant: all-small-caps;';
-        div.innerHTML = `<span style="font-weight:700;">MidJourney</span> Showcase - assembled by <span style="font-weight:700; color:orangered;">[AzLabs]</span> - ${dateString}`;
-        headerDiv.appendChild(div);
+    capture_date_str = page.evaluate("""
+        () => {
+            textArea = document.querySelector('textarea');
+            headerDiv = textArea.parentElement.parentElement.parentElement.parentElement;
+            div = document.createElement('div');
+            now = new Date();
+            captureDateString = now.toUTCString();
+            // div.textContent = 'MidJourney Showcase - captured by [AzLabs] ' + captureDateString;
+            div.style = 'text-align:center; margin-top: 8px; font-variant: all-small-caps;';
+            div.innerHTML = `<span style="font-weight:700;">MidJourney</span> Showcase - assembled by <span style="font-weight:700; color:orangered;">[AzLabs]</span> - ${captureDateString}`;
+            headerDiv.appendChild(div);
+            return captureDateString;
+        }
     """)
-    
+    print(f"Capture date: '{capture_date_str}'")
+
+    clip_rect = { "x":IMAGE_OFFSET_X, "y":IMAGE_OFFSET_Y, "width":IMAGE_WIDTH, "height":IMAGE_HEIGHT }
+    print(f"Using clip_rect: {clip_rect}")
+
+    # metadata
+    metadata = {
+        "capture_date_str": capture_date_str,
+        "clip_rect": clip_rect,
+        "max_links": MAX_LINKS_TO_PROCESS,
+        "link_info": links_info,
+    }
+    metadata_file_path = output_folder / Path("metadata.json")
+    print(f'Writing metadata to "{metadata_file_path.as_posix()}"...')
+    with open(metadata_file_path, "w", encoding="utf-8") as f:
+        f.write(json.dumps(metadata, indent=2))
+
     suggested_filename = f'image_{(0):>03d}.png'
     screenshot_filename = output_folder / Path(suggested_filename)
     print(f"Saving page screenshot to '{screenshot_filename}'...")
-    # clip_rect = { "x":0, "y":0, "width":1102, "height":620 }    
     # breakpoint()
     # try setting env var PW_TEST_SCREENSHOT_NO_FONTS_READY=1 if it gets stuck taking screenshot
     page.screenshot(path=screenshot_filename)
-    ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT)
+    ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT, scaling_algo=SCALING_ALGO, keep_temp=SCALING_KEEP_TEMP)
 
     # load createDownloadAnchorFor() function
     with open("create_download_anchor_for.js") as f:
       js_create_download = f.read()
 
     num_items = len(links_info)
-    
+
     links_to_process = links_info[:]
     num_links_to_process = len(links_to_process)
 
-    clip_rect = { "x":IMAGE_OFFSET_X, "y":IMAGE_OFFSET_Y, "width":IMAGE_WIDTH, "height":IMAGE_HEIGHT }
-    print(f"Using clip_rect: {clip_rect}")
-
+    # process links
     num_links_to_process = MAX_LINKS_TO_PROCESS if MAX_LINKS_TO_PROCESS >= 0 else num_links_to_process
     for idx, item in enumerate(links_to_process[:num_links_to_process]):
 
@@ -197,18 +219,21 @@ if __name__ == "__main__":
       page.goto(item['href'])
       set_preferred_theme(page, preferred_theme)
       page.wait_for_load_state("load")
-      
+
+      if HIDE_SIDE_BAR:
+          page.evaluate('document.querySelector("nav").style.display = "none";')
+
       if idx == 0:
-          suggested_filename = f'test_page.png'
+          suggested_filename = f'test_fullpage.png'
           filename = output_folder / Path(suggested_filename)
           print(f"Saving test screenshot to '{filename}'...")
           page.screenshot(path=filename)
-      
+
       suggested_filename = f'image_{(idx + 1):>03d}.png'
       filename = output_folder / Path(suggested_filename)
       print(f"Saving screenshot to '{filename}'...")
       page.screenshot(clip=clip_rect, path=filename)
-      ffmpeg_resize_image(filename, filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT)
+      ffmpeg_resize_image(filename, filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT, scaling_algo=SCALING_ALGO, keep_temp=SCALING_KEEP_TEMP)
 
     print("")
     print(f"{num_links_to_process} links processed. Exiting...")
