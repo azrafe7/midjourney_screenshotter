@@ -18,13 +18,13 @@ RESIZE_HEIGHT = 1080
 SCALING_KEEP_TEMP = True
 SCALING_ALGO = "lanczos"
 
-HIDE_SIDE_BAR = True
+HIDE_SIDEBAR = True
 IMAGE_OFFSET_X = 0
 IMAGE_OFFSET_Y = 80
 IMAGE_WIDTH = 1442
 IMAGE_HEIGHT = 810
 
-MAX_LINKS_TO_PROCESS = 0  # set it to -1 to process them all
+MAX_LINKS_TO_PROCESS = 1  # set it to -1 to process them all
 
 FFMPEG_QUIET = True
 
@@ -160,15 +160,26 @@ if __name__ == "__main__":
     """)
     print(f"Capture date: '{capture_date_str}'")
 
-    clip_rect = { "x":IMAGE_OFFSET_X, "y":IMAGE_OFFSET_Y, "width":IMAGE_WIDTH, "height":IMAGE_HEIGHT }
-    print(f"Using clip_rect: {clip_rect}")
+    # set image_clip_rect
+    image_clip_rect = { "x":IMAGE_OFFSET_X, "y":IMAGE_OFFSET_Y, "width":IMAGE_WIDTH, "height":IMAGE_HEIGHT }
 
     # metadata
     metadata = {
         "capture_date_str": capture_date_str,
-        "clip_rect": clip_rect,
+        "viewport": {
+            "width": VIEWPORT_WIDTH,
+            "height": VIEWPORT_HEIGHT,
+        },
+        "resize": {
+            "width": RESIZE_WIDTH,
+            "height": RESIZE_HEIGHT,
+            "scaling_algo": SCALING_ALGO,
+            "scaling_keep_temp": SCALING_KEEP_TEMP,
+        },
+        "hide_sidebar": HIDE_SIDEBAR,
+        "image_clip_rect": image_clip_rect,
         "max_links": MAX_LINKS_TO_PROCESS,
-        "link_info": links_info,
+        "links_info": links_info,
     }
     metadata_file_path = output_folder / Path("metadata.json")
     print(f'Writing metadata to "{metadata_file_path.as_posix()}"...')
@@ -193,7 +204,10 @@ if __name__ == "__main__":
     num_links_to_process = len(links_to_process)
 
     # process links
+    print(f"Using image_clip_rect: {image_clip_rect}")
     num_links_to_process = MAX_LINKS_TO_PROCESS if MAX_LINKS_TO_PROCESS >= 0 else num_links_to_process
+    print(f"Links to process: {num_links_to_process}/{num_items}")
+
     for idx, item in enumerate(links_to_process[:num_links_to_process]):
 
       ## try to download images directly
@@ -220,7 +234,7 @@ if __name__ == "__main__":
       set_preferred_theme(page, preferred_theme)
       page.wait_for_load_state("load")
 
-      if HIDE_SIDE_BAR:
+      if HIDE_SIDEBAR:
           page.evaluate('document.querySelector("nav").style.display = "none";')
 
       if idx == 0:
@@ -232,7 +246,7 @@ if __name__ == "__main__":
       suggested_filename = f'image_{(idx + 1):>03d}.png'
       filename = output_folder / Path(suggested_filename)
       print(f"Saving screenshot to '{filename}'...")
-      page.screenshot(clip=clip_rect, path=filename)
+      page.screenshot(clip=image_clip_rect, path=filename)
       ffmpeg_resize_image(filename, filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT, scaling_algo=SCALING_ALGO, keep_temp=SCALING_KEEP_TEMP)
 
     print("")
