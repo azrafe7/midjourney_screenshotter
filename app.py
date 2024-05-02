@@ -6,6 +6,8 @@ import settings
 import os
 import re
 from pathlib import Path
+import shutil
+import dateutil
 import ffmpeg
 import json
 
@@ -24,7 +26,7 @@ IMAGE_OFFSET_Y = 80
 IMAGE_WIDTH = 1442
 IMAGE_HEIGHT = 810
 
-MAX_LINKS_TO_PROCESS = 1  # set it to -1 to process them all
+MAX_LINKS_TO_PROCESS = -1  # set it to -1 to process them all
 
 FFMPEG_QUIET = True
 
@@ -47,12 +49,13 @@ def delete_files(self, files):
 def ffmpeg_resize_image(input_file, output_file, width, height, scaling_algo="bicubic", keep_temp=False):
     # breakpoint()
     input_file_path = Path(input_file)
+    original_input_file_path = input_file_path
     output_file_path = Path(output_file)
     needs_temp_file = input_file_path == output_file_path
     if needs_temp_file:
-        file_to_replace = output_file_path
-        stem = Path(output_file_path).stem
-        output_file_path = Path(output_file_path).with_stem(stem + '_temp')
+        stem = Path(input_file_path).stem
+        input_file_path = Path(input_file_path).with_stem(stem + '_temp')
+        shutil.copy(original_input_file_path, input_file_path)  # copy to temp
 
     cmd = (
         ffmpeg.input(input_file_path.as_posix())
@@ -67,16 +70,21 @@ def ffmpeg_resize_image(input_file, output_file, width, height, scaling_algo="bi
         .overwrite_output()
     )
 
-    print(f"Resizing to {width}:{height}...")
+    print(f"Resizing to {width}:{height} ({scaling_algo})...")
     print_ffmpeg_cmd(cmd)
     cmd.run(quiet=FFMPEG_QUIET)
 
     # overwrite original output_file if needed
     if needs_temp_file:
-        # output_file_path.replace(file_to_replace)
-        output_file_path = file_to_replace
+        if not keep_temp:
+            input_file_path.unlink()
 
     return str(output_file_path)
+
+def date_id_from_string(date_str):
+    parsed_date = dateutil.parser.parse(date_str)
+    date_id = parsed_date.strftime('%Y%m%d:%H%M%S')
+    return date_id
 
 
 if __name__ == "__main__":
@@ -158,7 +166,8 @@ if __name__ == "__main__":
             return captureDateString;
         }
     """)
-    print(f"Capture date: '{capture_date_str}'")
+    capture_date_id = date_id_from_string(capture_date_str)
+    print(f"Capture date: '{capture_date_str}' ({capture_date_id})")
 
     # set image_clip_rect
     image_clip_rect = { "x":IMAGE_OFFSET_X, "y":IMAGE_OFFSET_Y, "width":IMAGE_WIDTH, "height":IMAGE_HEIGHT }
@@ -166,6 +175,7 @@ if __name__ == "__main__":
     # metadata
     metadata = {
         "capture_date_str": capture_date_str,
+        "capture_date_id": capture_date_id,
         "viewport": {
             "width": VIEWPORT_WIDTH,
             "height": VIEWPORT_HEIGHT,
@@ -174,7 +184,7 @@ if __name__ == "__main__":
             "width": RESIZE_WIDTH,
             "height": RESIZE_HEIGHT,
             "scaling_algo": SCALING_ALGO,
-            "scaling_keep_temp": SCALING_KEEP_TEMP,
+            "keep_temp": SCALING_KEEP_TEMP,
         },
         "hide_sidebar": HIDE_SIDEBAR,
         "image_clip_rect": image_clip_rect,
