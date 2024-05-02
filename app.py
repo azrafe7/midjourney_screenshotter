@@ -256,6 +256,14 @@ if __name__ == "__main__":
       set_preferred_theme(page, preferred_theme)
       page.wait_for_load_state("load")
 
+      # try to wait for images to load (https://github.com/microsoft/playwright/issues/6046#issuecomment-1757704069)
+      page.wait_for_function('''
+          () => {
+              const images = Array.from(document.querySelectorAll('img'));
+              return images.every(img => img.complete);
+          }
+      ''')
+
       if HIDE_SIDEBAR:
           page.evaluate('document.querySelector("nav").style.display = "none";')
 
