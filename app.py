@@ -12,19 +12,19 @@ import ffmpeg
 import json
 
 
-VIEWPORT_WIDTH = 1600
-VIEWPORT_HEIGHT = 900
+VIEWPORT_WIDTH = 1280
+VIEWPORT_HEIGHT = 720
 
 RESIZE_WIDTH = 1920
 RESIZE_HEIGHT = 1080
 SCALING_KEEP_TEMP = True
 SCALING_ALGO = "lanczos"
 
-HIDE_SIDEBAR = True
-IMAGE_OFFSET_X = 0
-IMAGE_OFFSET_Y = 80
-IMAGE_WIDTH = 1442
-IMAGE_HEIGHT = 810
+HIDE_SIDEBAR = False
+IMAGE_OFFSET_X = 82
+IMAGE_OFFSET_Y = 84
+IMAGE_WIDTH = 1114
+IMAGE_HEIGHT = 626
 
 MAX_LINKS_TO_PROCESS = -1  # set it to -1 to process them all
 
@@ -123,7 +123,7 @@ if __name__ == "__main__":
 
     page.wait_for_load_state("load")
 
-    preferred_theme = 'dark'
+    preferred_theme = settings.theme
     print(f"Setting preferred theme to '{preferred_theme}'...")
     set_preferred_theme(page, preferred_theme)
 
@@ -157,15 +157,17 @@ if __name__ == "__main__":
             textArea = document.querySelector('textarea');
             headerDiv = textArea.parentElement.parentElement.parentElement.parentElement;
             div = document.createElement('div');
+            div.classList.add('az-labs');
             now = new Date();
             captureDateString = now.toUTCString();
             // div.textContent = 'MidJourney Showcase - captured by [AzLabs] ' + captureDateString;
-            div.style = 'text-align:center; margin-top: 8px; font-variant: all-small-caps;';
+            div.style = 'text-align:center; margin-top: -2px; font-variant: all-small-caps; font-size: 28px;';
             div.innerHTML = `<span style="font-weight:700;">MidJourney</span> Showcase - assembled by <span style="font-weight:700; color:orangered;">[AzLabs]</span> - ${captureDateString}`;
             headerDiv.appendChild(div);
             return captureDateString;
         }
     """)
+    # breakpoint()
     capture_date_id = date_id_from_string(capture_date_str)
     print(f"Capture date: '{capture_date_str}' ({capture_date_id})")
 
@@ -203,6 +205,16 @@ if __name__ == "__main__":
     # try setting env var PW_TEST_SCREENSHOT_NO_FONTS_READY=1 if it gets stuck taking screenshot
     page.screenshot(path=screenshot_filename)
     ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT, scaling_algo=SCALING_ALGO, keep_temp=SCALING_KEEP_TEMP)
+
+    # save full page screenshot
+    full_page_height = page.evaluate('document.querySelector("#pageScroll").scrollHeight;')  # get full page height
+    page.set_viewport_size({"width": VIEWPORT_WIDTH, "height": full_page_height})
+    suggested_filename = f'image_{(0):>03d}_full.png'
+    screenshot_filename = output_folder / Path(suggested_filename)
+    print(f"Saving full page screenshot to '{screenshot_filename}'...")
+    page.screenshot(path=screenshot_filename, full_page=True)
+    # ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT, scaling_algo=SCALING_ALGO, keep_temp=SCALING_KEEP_TEMP)
+    page.set_viewport_size({"width": VIEWPORT_WIDTH, "height": VIEWPORT_HEIGHT})  # reset viewport size
 
     # load createDownloadAnchorFor() function
     with open("create_download_anchor_for.js") as f:
