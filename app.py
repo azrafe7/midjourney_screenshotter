@@ -28,6 +28,8 @@ IMAGE_HEIGHT = 626
 
 MAX_LINKS_TO_PROCESS = -1  # set it to -1 to process them all
 
+SAVE_INITIAL_FULL_PAGE = True
+
 FFMPEG_QUIET = True
 
 
@@ -207,14 +209,15 @@ if __name__ == "__main__":
     ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT, scaling_algo=SCALING_ALGO, keep_temp=SCALING_KEEP_TEMP)
 
     # save full page screenshot
-    full_page_height = page.evaluate('document.querySelector("#pageScroll").scrollHeight;')  # get full page height
-    page.set_viewport_size({"width": VIEWPORT_WIDTH, "height": full_page_height})
-    suggested_filename = f'image_{(0):>03d}_full.png'
-    screenshot_filename = output_folder / Path(suggested_filename)
-    print(f"Saving full page screenshot to '{screenshot_filename}'...")
-    page.screenshot(path=screenshot_filename, full_page=True)
-    # ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT, scaling_algo=SCALING_ALGO, keep_temp=SCALING_KEEP_TEMP)
-    page.set_viewport_size({"width": VIEWPORT_WIDTH, "height": VIEWPORT_HEIGHT})  # reset viewport size
+    if SAVE_INITIAL_FULL_PAGE:
+        full_page_height = page.evaluate('document.querySelector("#pageScroll").scrollHeight;')  # get full page height
+        page.set_viewport_size({"width": VIEWPORT_WIDTH, "height": full_page_height})
+        suggested_filename = f'image_{(0):>03d}_full.png'
+        screenshot_filename = output_folder / Path(suggested_filename)
+        print(f"Saving full page screenshot to '{screenshot_filename}'...")
+        page.screenshot(path=screenshot_filename, full_page=True)
+        # ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT, scaling_algo=SCALING_ALGO, keep_temp=SCALING_KEEP_TEMP)
+        page.set_viewport_size({"width": VIEWPORT_WIDTH, "height": VIEWPORT_HEIGHT})  # reset viewport size
 
     # load createDownloadAnchorFor() function
     with open("create_download_anchor_for.js") as f:
