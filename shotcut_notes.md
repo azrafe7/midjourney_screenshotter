@@ -13,3 +13,6 @@ In the playlist:
     - Transition duration: 1.0s
     - Transition type: Dissolve
     - Transition softness: [disabled]
+  - use Split at Playhead and Ripple delete to cut the black frames
+  - add fade-in/fadeout
+  
