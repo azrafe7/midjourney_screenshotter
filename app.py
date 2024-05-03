@@ -10,28 +10,7 @@ import shutil
 import dateutil
 import ffmpeg
 import json
-
-
-VIEWPORT_WIDTH = 1280
-VIEWPORT_HEIGHT = 720
-
-RESIZE_WIDTH = 1920
-RESIZE_HEIGHT = 1080
-SCALING_KEEP_TEMP = True
-SCALING_ALGO = "lanczos"
-
-HIDE_SIDEBAR = True
-
-IMAGE_OFFSET_X = 0
-IMAGE_OFFSET_Y = 76
-IMAGE_WIDTH = 1146
-IMAGE_HEIGHT = 644
-
-MAX_LINKS_TO_PROCESS = 1  # set it to -1 to process them all
-
-SAVE_INITIAL_FULL_PAGE = True
-
-FFMPEG_QUIET = True
+import time
 
 
 def set_preferred_theme(page, preferred_theme):
@@ -75,7 +54,7 @@ def ffmpeg_resize_image(input_file, output_file, width, height, scaling_algo="bi
 
     print(f"Resizing to {width}:{height} ({scaling_algo})...")
     print_ffmpeg_cmd(cmd)
-    cmd.run(quiet=FFMPEG_QUIET)
+    cmd.run(quiet=settings.FFMPEG_QUIET)
 
     # overwrite original output_file if needed
     if needs_temp_file:
@@ -92,25 +71,27 @@ def date_id_from_string(date_str):
 
 if __name__ == "__main__":
 
+  start_time = time.time()
+  
   parser = argparse.ArgumentParser()
-  parser.add_argument("-o", "--output", type=str, default=settings.output_folder, help=f"output folder (defaults to settings.output_folder: '{settings.output_folder}')")
+  parser.add_argument("-o", "--output", type=str, default=settings.OUTPUT_FOLDER, help=f"output folder (defaults to settings.OUTPUT_FOLDER: '{settings.OUTPUT_FOLDER}')")
   args = parser.parse_args()
 
   # breakpoint()
 
   # override output_folder
   if args.output:
-    settings.output_folder = args.output
+    settings.OUTPUT_FOLDER = args.output
 
   with sync_playwright() as p:
-    print("Launching " + ("Headless " if settings.headless_browser else "") + "Browser...")
+    print("Launching " + ("Headless " if settings.HEADLESS_BROWSER else "") + "Browser...")
 
-    browser = p.chromium.launch(headless=settings.headless_browser)
+    browser = p.chromium.launch(headless=settings.HEADLESS_BROWSER)
     context = browser.new_context(
-        user_agent=settings.user_agent,
-        viewport=ViewportSize(width=VIEWPORT_WIDTH, height=VIEWPORT_HEIGHT)
+        user_agent=settings.USER_AGENT,
+        viewport=ViewportSize(width=settings.VIEWPORT_WIDTH, height=settings.VIEWPORT_HEIGHT)
     )
-    context.set_default_timeout(settings.default_timeout)
+    context.set_default_timeout(settings.DEFAULT_TIMEOUT)
 
     # use stealth mode
     stealth_sync(context)
@@ -126,7 +107,7 @@ if __name__ == "__main__":
 
     page.wait_for_load_state("load")
 
-    preferred_theme = settings.theme
+    preferred_theme = settings.THEME
     print(f"Setting preferred theme to '{preferred_theme}'...")
     set_preferred_theme(page, preferred_theme)
 
@@ -134,7 +115,7 @@ if __name__ == "__main__":
     page.wait_for_selector(page_scroll_selector, state='visible')
     page_scroll_loc = page.locator(page_scroll_selector).first
 
-    output_folder = Path(settings.output_folder)
+    output_folder = Path(settings.OUTPUT_FOLDER)
     output_folder.mkdir(parents=True, exist_ok=True)
     print(f"Output folder: '{output_folder}'")
 
@@ -175,25 +156,25 @@ if __name__ == "__main__":
     print(f"Capture date: '{capture_date_str}' ({capture_date_id})")
 
     # set image_clip_rect
-    image_clip_rect = { "x":IMAGE_OFFSET_X, "y":IMAGE_OFFSET_Y, "width":IMAGE_WIDTH, "height":IMAGE_HEIGHT }
+    image_clip_rect = { "x":settings.IMAGE_OFFSET_X, "y":settings.IMAGE_OFFSET_Y, "width":settings.IMAGE_WIDTH, "height":settings.IMAGE_HEIGHT }
 
     # metadata
     metadata = {
         "capture_date_str": capture_date_str,
         "capture_date_id": capture_date_id,
         "viewport": {
-            "width": VIEWPORT_WIDTH,
-            "height": VIEWPORT_HEIGHT,
+            "width": settings.VIEWPORT_WIDTH,
+            "height": settings.VIEWPORT_HEIGHT,
         },
         "resize": {
-            "width": RESIZE_WIDTH,
-            "height": RESIZE_HEIGHT,
-            "scaling_algo": SCALING_ALGO,
-            "keep_temp": SCALING_KEEP_TEMP,
+            "width": settings.RESIZE_WIDTH,
+            "height": settings.RESIZE_HEIGHT,
+            "scaling_algo": settings.SCALING_ALGO,
+            "keep_temp": settings.SCALING_KEEP_TEMP,
         },
-        "hide_sidebar": HIDE_SIDEBAR,
+        "hide_sidebar": settings.HIDE_SIDEBAR,
         "image_clip_rect": image_clip_rect,
-        "max_links": MAX_LINKS_TO_PROCESS,
+        "max_links": settings.MAX_LINKS_TO_PROCESS,
         "links_info": links_info,
     }
     metadata_file_path = output_folder / Path("metadata.json")
@@ -207,12 +188,12 @@ if __name__ == "__main__":
     # breakpoint()
     # try setting env var PW_TEST_SCREENSHOT_NO_FONTS_READY=1 if it gets stuck taking screenshot
     page.screenshot(path=screenshot_filename)
-    ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT, scaling_algo=SCALING_ALGO, keep_temp=SCALING_KEEP_TEMP)
+    ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=settings.RESIZE_WIDTH, height=settings.RESIZE_HEIGHT, scaling_algo=settings.SCALING_ALGO, keep_temp=settings.SCALING_KEEP_TEMP)
 
     # save full page screenshot
-    if SAVE_INITIAL_FULL_PAGE:
+    if settings.SAVE_INITIAL_FULL_PAGE:
         full_page_height = page.evaluate('document.querySelector("#pageScroll").scrollHeight;')  # get full page height
-        viewport_size = {"width": VIEWPORT_WIDTH, "height": full_page_height}
+        viewport_size = {"width": settings.VIEWPORT_WIDTH, "height": full_page_height}
         print(f"Temporarily setting viewport size to {viewport_size}...")
         page.set_viewport_size(viewport_size)  # set viewport size to full page height
         suggested_filename = f'image_{(0):>03d}_full.png'
@@ -220,7 +201,7 @@ if __name__ == "__main__":
         print(f"Saving full page screenshot to '{screenshot_filename}'...")
         page.screenshot(path=screenshot_filename, full_page=True)
         # ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT, scaling_algo=SCALING_ALGO, keep_temp=SCALING_KEEP_TEMP)
-        viewport_size = {"width": VIEWPORT_WIDTH, "height": VIEWPORT_HEIGHT}
+        viewport_size = {"width": settings.VIEWPORT_WIDTH, "height": settings.VIEWPORT_HEIGHT}
         print(f"Resetting viewport size to {viewport_size}...")
         page.set_viewport_size(viewport_size)  # reset viewport size
 
@@ -235,7 +216,7 @@ if __name__ == "__main__":
 
     # process links
     print(f"Using image_clip_rect: {image_clip_rect}")
-    num_links_to_process = MAX_LINKS_TO_PROCESS if MAX_LINKS_TO_PROCESS >= 0 else num_links_to_process
+    num_links_to_process = settings.MAX_LINKS_TO_PROCESS if settings.MAX_LINKS_TO_PROCESS >= 0 else num_links_to_process
     print(f"Links to process: {num_links_to_process}/{num_items}")
 
     for idx, item in enumerate(links_to_process[:num_links_to_process]):
@@ -272,7 +253,7 @@ if __name__ == "__main__":
           }
       ''')
 
-      if HIDE_SIDEBAR:
+      if settings.HIDE_SIDEBAR:
           page.evaluate('document.querySelector("nav").style.display = "none";')
 
       if idx == 0:
@@ -285,10 +266,11 @@ if __name__ == "__main__":
       filename = output_folder / Path(suggested_filename)
       print(f"Saving screenshot to '{filename}'...")
       page.screenshot(clip=image_clip_rect, path=filename)
-      ffmpeg_resize_image(filename, filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT, scaling_algo=SCALING_ALGO, keep_temp=SCALING_KEEP_TEMP)
+      ffmpeg_resize_image(filename, filename, width=settings.RESIZE_WIDTH, height=settings.RESIZE_HEIGHT, scaling_algo=settings.SCALING_ALGO, keep_temp=settings.SCALING_KEEP_TEMP)
 
     print("")
-    print(f"{num_links_to_process} links processed. Exiting...")
+    elapsed_time = time.time() - start_time
+    print(f"{num_links_to_process} links processed (in {elapsed_time:.2f}s). Exiting...")
 
     context.close()
     browser.close()
