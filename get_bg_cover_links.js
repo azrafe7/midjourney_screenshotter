@@ -21,21 +21,6 @@
     }
   }
 
-  /*
-  scrollListener = event => {
-    if (reachedScrollEndOf(event.target)) {
-      console.log('scroll end');
-      scrollEnd = true;
-      pageScrollElement.removeEventListener('scroll', scrollListener);
-    } else {
-      console.log("scrolling...");
-    }
-  }
-
-  pageScrollElement.addEventListener('scroll', scrollListener);
-
-  */
-
   function smoothScrollBy(elem, offset=0) {
     elem.scrollBy({
       top: offset,
@@ -74,11 +59,11 @@
 
   bgCovers = Array.from(bgCoversSet.values());
   
-  res = bgCovers.map((el) => {
+  res = bgCovers.map((el, idx) => {
     backgroundImageStyle = el.style.backgroundImage;
     matches = [...backgroundImageStyle.matchAll(url_regex)];
     matched_urls = matches.map((m) => m.length > 1 ? m[1] : [])
-    return {href:el.href, style:backgroundImageStyle, urls:matched_urls};
+    return {idx:idx, href:el.href, style:backgroundImageStyle, urls:matched_urls};
   });
   
   console.log(res);
