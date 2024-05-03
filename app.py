@@ -20,13 +20,14 @@ RESIZE_HEIGHT = 1080
 SCALING_KEEP_TEMP = True
 SCALING_ALGO = "lanczos"
 
-HIDE_SIDEBAR = False
-IMAGE_OFFSET_X = 82
-IMAGE_OFFSET_Y = 84
-IMAGE_WIDTH = 1114
-IMAGE_HEIGHT = 626
+HIDE_SIDEBAR = True
 
-MAX_LINKS_TO_PROCESS = -1  # set it to -1 to process them all
+IMAGE_OFFSET_X = 0
+IMAGE_OFFSET_Y = 76
+IMAGE_WIDTH = 1146
+IMAGE_HEIGHT = 644
+
+MAX_LINKS_TO_PROCESS = 1  # set it to -1 to process them all
 
 SAVE_INITIAL_FULL_PAGE = True
 
@@ -211,13 +212,17 @@ if __name__ == "__main__":
     # save full page screenshot
     if SAVE_INITIAL_FULL_PAGE:
         full_page_height = page.evaluate('document.querySelector("#pageScroll").scrollHeight;')  # get full page height
-        page.set_viewport_size({"width": VIEWPORT_WIDTH, "height": full_page_height})
+        viewport_size = {"width": VIEWPORT_WIDTH, "height": full_page_height}
+        print(f"Temporarily setting viewport size to {viewport_size}...")
+        page.set_viewport_size(viewport_size)  # set viewport size to full page height
         suggested_filename = f'image_{(0):>03d}_full.png'
         screenshot_filename = output_folder / Path(suggested_filename)
         print(f"Saving full page screenshot to '{screenshot_filename}'...")
         page.screenshot(path=screenshot_filename, full_page=True)
         # ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT, scaling_algo=SCALING_ALGO, keep_temp=SCALING_KEEP_TEMP)
-        page.set_viewport_size({"width": VIEWPORT_WIDTH, "height": VIEWPORT_HEIGHT})  # reset viewport size
+        viewport_size = {"width": VIEWPORT_WIDTH, "height": VIEWPORT_HEIGHT}
+        print(f"Resetting viewport size to {viewport_size}...")
+        page.set_viewport_size(viewport_size)  # reset viewport size
 
     # load createDownloadAnchorFor() function
     with open("create_download_anchor_for.js") as f:
@@ -271,7 +276,7 @@ if __name__ == "__main__":
           page.evaluate('document.querySelector("nav").style.display = "none";')
 
       if idx == 0:
-          suggested_filename = f'test_fullpage.png'
+          suggested_filename = f'image_{(idx + 1):>03d}_full_temp.png'
           filename = output_folder / Path(suggested_filename)
           print(f"Saving test screenshot to '{filename}'...")
           page.screenshot(path=filename)
