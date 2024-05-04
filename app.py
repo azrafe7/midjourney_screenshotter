@@ -68,6 +68,16 @@ def date_id_from_string(date_str):
     date_id = parsed_date.strftime('%Y%m%d:%H%M%S')
     return date_id
 
+def load_links_from(metadata_file, indices):
+    with open(metadata_file, "r", encoding="utf-8") as f:
+        metadata = json.load(f)
+    links_info = metadata["links_info"]
+    if not indices:
+        indices = list(range(len(links_info)))
+    links = [links_info[idx]["href"] for idx in indices]
+    
+    return links, indices
+    
 
 if __name__ == "__main__":
 
@@ -75,13 +85,23 @@ if __name__ == "__main__":
   
   parser = argparse.ArgumentParser()
   parser.add_argument("-o", "--output", type=str, default=settings.OUTPUT_FOLDER, help=f"output folder (defaults to settings.OUTPUT_FOLDER: '{settings.OUTPUT_FOLDER}')")
+  parser.add_argument("-l", "--link", type=str, action="append", help=f"download specified link (can use it multiple times e.g. '-l <link1> -l <link2> etc.')")
+  parser.add_argument("-m", "--metadata", type=str, help=f"use the specified metadata.json file")
+  parser.add_argument("-i", "--indices", type=int, action="append", help=f"use the specified indices (either with --metadata or with --link (can use it multiple times e.g. '-i 12 -l 0 etc.')")
   args = parser.parse_args()
 
   # breakpoint()
 
   # override output_folder
   if args.output:
-    settings.OUTPUT_FOLDER = args.output
+      settings.OUTPUT_FOLDER = args.output
+
+  url_links = args.link
+  url_indices = args.indices
+  
+  if args.metadata:
+      print(f"Loading links from '{args.metadata}'...")
+      url_links, url_indices = load_links_from(args.metadata, url_indices)
 
   with sync_playwright() as p:
     print("Launching " + ("Headless " if settings.HEADLESS_BROWSER else "") + "Browser...")
@@ -97,129 +117,137 @@ if __name__ == "__main__":
     stealth_sync(context)
     page = context.new_page()
 
-    print(f"Going to '{settings.MIDJOURNEY_URL}'...")
-
-    # stealth_sync(page)
-    page.goto(settings.MIDJOURNEY_URL)
-
-    nav_webdriver = page.evaluate("navigator.webdriver")
-    print(f"navigator.webdriver: {nav_webdriver}") # should be None if stealth mode is working
-
-    page.wait_for_load_state("load")
-
+    # set image_clip_rect
+    image_clip_rect = { "x":settings.IMAGE_OFFSET_X, "y":settings.IMAGE_OFFSET_Y, "width":settings.IMAGE_WIDTH, "height":settings.IMAGE_HEIGHT }
+    # set preferred_theme
     preferred_theme = settings.THEME
-    print(f"Setting preferred theme to '{preferred_theme}'...")
-    set_preferred_theme(page, preferred_theme)
-
-    page_scroll_selector = '#pageScroll'
-    page.wait_for_selector(page_scroll_selector, state='visible')
-    page_scroll_loc = page.locator(page_scroll_selector).first
-
+    # set output folder
     output_folder = Path(settings.OUTPUT_FOLDER)
     output_folder.mkdir(parents=True, exist_ok=True)
     print(f"Output folder: '{output_folder}'")
 
-    print("Scrolling to collect links...")
+    if not url_links:
+        print(f"Going to '{settings.MIDJOURNEY_URL}'...")
 
-    # inject code to scroll and collect links
-    with open("get_bg_cover_links.js") as f:
-      js_script = f.read()
+        # stealth_sync(page)
+        page.goto(settings.MIDJOURNEY_URL)
 
-    links_info = page.evaluate(js_script)
+        nav_webdriver = page.evaluate("navigator.webdriver")
+        print(f"navigator.webdriver: {nav_webdriver}") # should be None if stealth mode is working
 
-    print("Reached end of page. Creating download links...")
+        page.wait_for_load_state("load")
 
-    # scroll to top and hide scrollbar
-    page.evaluate("""
-        scrollElem = document.querySelector('#pageScroll');
-        scrollElem.scroll(0,0);
-        scrollElem.style.overflowY = 'hidden';
-    """)
-    # add date string below textArea
-    capture_date_str = page.evaluate("""
-        () => {
-            textArea = document.querySelector('textarea');
-            headerDiv = textArea.parentElement.parentElement.parentElement.parentElement;
-            div = document.createElement('div');
-            div.classList.add('az-labs');
-            now = new Date();
-            captureDateString = now.toUTCString();
-            // div.textContent = 'MidJourney Showcase - captured by [AzLabs] ' + captureDateString;
-            div.style = 'text-align:center; margin-top: -2px; font-variant: all-small-caps; font-size: 28px;';
-            div.innerHTML = `<span style="font-weight:700;">MidJourney</span> Showcase - assembled by <span style="font-weight:700; color:orangered;">[AzLabs]</span> - ${captureDateString}`;
-            headerDiv.appendChild(div);
-            return captureDateString;
+        print(f"Setting preferred theme to '{preferred_theme}'...")
+        set_preferred_theme(page, preferred_theme)
+
+        page_scroll_selector = '#pageScroll'
+        page.wait_for_selector(page_scroll_selector, state='visible')
+        page_scroll_loc = page.locator(page_scroll_selector).first
+
+        print("Scrolling to collect links...")
+
+        # inject code to scroll and collect links
+        with open("get_bg_cover_links.js") as f:
+          js_script = f.read()
+
+        links_info = page.evaluate(js_script)
+
+        print("Reached end of page. Creating download links...")
+
+        # scroll to top and hide scrollbar
+        page.evaluate("""
+            scrollElem = document.querySelector('#pageScroll');
+            scrollElem.scroll(0,0);
+            scrollElem.style.overflowY = 'hidden';
+        """)
+        # add date string below textArea
+        capture_date_str = page.evaluate("""
+            () => {
+                textArea = document.querySelector('textarea');
+                headerDiv = textArea.parentElement.parentElement.parentElement.parentElement;
+                div = document.createElement('div');
+                div.classList.add('az-labs');
+                now = new Date();
+                captureDateString = now.toUTCString();
+                // div.textContent = 'MidJourney Showcase - captured by [AzLabs] ' + captureDateString;
+                div.style = 'text-align:center; margin-top: -2px; font-variant: all-small-caps; font-size: 28px;';
+                div.innerHTML = `<span style="font-weight:700;">MidJourney</span> Showcase - assembled by <span style="font-weight:700; color:orangered;">[AzLabs]</span> - ${captureDateString}`;
+                headerDiv.appendChild(div);
+                return captureDateString;
+            }
+        """)
+        # breakpoint()
+        capture_date_id = date_id_from_string(capture_date_str)
+        print(f"Capture date: '{capture_date_str}' ({capture_date_id})")
+
+        # metadata
+        metadata = {
+            "capture_date_str": capture_date_str,
+            "capture_date_id": capture_date_id,
+            "viewport": {
+                "width": settings.VIEWPORT_WIDTH,
+                "height": settings.VIEWPORT_HEIGHT,
+            },
+            "resize": {
+                "width": settings.RESIZE_WIDTH,
+                "height": settings.RESIZE_HEIGHT,
+                "scaling_algo": settings.SCALING_ALGO,
+                "keep_temp": settings.SCALING_KEEP_TEMP,
+            },
+            "hide_sidebar": settings.HIDE_SIDEBAR,
+            "image_clip_rect": image_clip_rect,
+            "max_links": settings.MAX_LINKS_TO_PROCESS,
+            "links_info": links_info,
         }
-    """)
-    # breakpoint()
-    capture_date_id = date_id_from_string(capture_date_str)
-    print(f"Capture date: '{capture_date_str}' ({capture_date_id})")
+        metadata_file_path = output_folder / Path("metadata.json")
+        print(f'Writing metadata to "{metadata_file_path.as_posix()}"...')
+        with open(metadata_file_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps(metadata, indent=2))
 
-    # set image_clip_rect
-    image_clip_rect = { "x":settings.IMAGE_OFFSET_X, "y":settings.IMAGE_OFFSET_Y, "width":settings.IMAGE_WIDTH, "height":settings.IMAGE_HEIGHT }
-
-    # metadata
-    metadata = {
-        "capture_date_str": capture_date_str,
-        "capture_date_id": capture_date_id,
-        "viewport": {
-            "width": settings.VIEWPORT_WIDTH,
-            "height": settings.VIEWPORT_HEIGHT,
-        },
-        "resize": {
-            "width": settings.RESIZE_WIDTH,
-            "height": settings.RESIZE_HEIGHT,
-            "scaling_algo": settings.SCALING_ALGO,
-            "keep_temp": settings.SCALING_KEEP_TEMP,
-        },
-        "hide_sidebar": settings.HIDE_SIDEBAR,
-        "image_clip_rect": image_clip_rect,
-        "max_links": settings.MAX_LINKS_TO_PROCESS,
-        "links_info": links_info,
-    }
-    metadata_file_path = output_folder / Path("metadata.json")
-    print(f'Writing metadata to "{metadata_file_path.as_posix()}"...')
-    with open(metadata_file_path, "w", encoding="utf-8") as f:
-        f.write(json.dumps(metadata, indent=2))
-
-    suggested_filename = f'image_{(0):>03d}.png'
-    screenshot_filename = output_folder / Path(suggested_filename)
-    print(f"Saving page screenshot to '{screenshot_filename}'...")
-    # breakpoint()
-    # try setting env var PW_TEST_SCREENSHOT_NO_FONTS_READY=1 if it gets stuck taking screenshot
-    page.screenshot(path=screenshot_filename)
-    ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=settings.RESIZE_WIDTH, height=settings.RESIZE_HEIGHT, scaling_algo=settings.SCALING_ALGO, keep_temp=settings.SCALING_KEEP_TEMP)
-
-    # save full page screenshot
-    if settings.SAVE_INITIAL_FULL_PAGE:
-        full_page_height = page.evaluate('document.querySelector("#pageScroll").scrollHeight;')  # get full page height
-        viewport_size = {"width": settings.VIEWPORT_WIDTH, "height": full_page_height}
-        print(f"Temporarily setting viewport size to {viewport_size}...")
-        page.set_viewport_size(viewport_size)  # set viewport size to full page height
-        suggested_filename = f'image_{(0):>03d}_full.png'
+        suggested_filename = f'image_{(0):>03d}.png'
         screenshot_filename = output_folder / Path(suggested_filename)
-        print(f"Saving full page screenshot to '{screenshot_filename}'...")
-        page.screenshot(path=screenshot_filename, full_page=True)
-        # ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT, scaling_algo=SCALING_ALGO, keep_temp=SCALING_KEEP_TEMP)
-        viewport_size = {"width": settings.VIEWPORT_WIDTH, "height": settings.VIEWPORT_HEIGHT}
-        print(f"Resetting viewport size to {viewport_size}...")
-        page.set_viewport_size(viewport_size)  # reset viewport size
+        print(f"Saving page screenshot to '{screenshot_filename}'...")
+        # breakpoint()
+        # try setting env var PW_TEST_SCREENSHOT_NO_FONTS_READY=1 if it gets stuck taking screenshot
+        page.screenshot(path=screenshot_filename)
+        ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=settings.RESIZE_WIDTH, height=settings.RESIZE_HEIGHT, scaling_algo=settings.SCALING_ALGO, keep_temp=settings.SCALING_KEEP_TEMP)
 
-    # load createDownloadAnchorFor() function
-    with open("create_download_anchor_for.js") as f:
-      js_create_download = f.read()
+        # save full page screenshot
+        if settings.SAVE_INITIAL_FULL_PAGE:
+            full_page_height = page.evaluate('document.querySelector("#pageScroll").scrollHeight;')  # get full page height
+            viewport_size = {"width": settings.VIEWPORT_WIDTH, "height": full_page_height}
+            print(f"Temporarily setting viewport size to {viewport_size}...")
+            page.set_viewport_size(viewport_size)  # set viewport size to full page height
+            suggested_filename = f'image_{(0):>03d}_full.png'
+            screenshot_filename = output_folder / Path(suggested_filename)
+            print(f"Saving full page screenshot to '{screenshot_filename}'...")
+            page.screenshot(path=screenshot_filename, full_page=True)
+            # ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT, scaling_algo=SCALING_ALGO, keep_temp=SCALING_KEEP_TEMP)
+            viewport_size = {"width": settings.VIEWPORT_WIDTH, "height": settings.VIEWPORT_HEIGHT}
+            print(f"Resetting viewport size to {viewport_size}...")
+            page.set_viewport_size(viewport_size)  # reset viewport size
+
+        # load createDownloadAnchorFor() function
+        with open("create_download_anchor_for.js") as f:
+          js_create_download = f.read()
+    else:
+        links_info = [{"href":link} for link in url_links]
+        print(f"Indices to process: {url_indices}")
 
     num_items = len(links_info)
 
     links_to_process = links_info[:]
     num_links_to_process = len(links_to_process)
 
+    if not url_indices:
+        url_indices = list(range(num_links_to_process))
+
     # process links
     print(f"Using image_clip_rect: {image_clip_rect}")
     num_links_to_process = settings.MAX_LINKS_TO_PROCESS if settings.MAX_LINKS_TO_PROCESS >= 0 else num_links_to_process
     print(f"Links to process: {num_links_to_process}/{num_items}")
 
-    for idx, item in enumerate(links_to_process[:num_links_to_process]):
+    for idx, (url_idx, item) in enumerate(zip(url_indices, links_to_process[:num_links_to_process])):
 
       ## try to download images directly
       #imgURL = item['urls'][-1]
@@ -257,12 +285,12 @@ if __name__ == "__main__":
           page.evaluate('document.querySelector("nav").style.display = "none";')
 
       if idx == 0:
-          suggested_filename = f'image_{(idx + 1):>03d}_full_temp.png'
+          suggested_filename = f'image_{(url_idx + 1):>03d}_full_temp.png'
           filename = output_folder / Path(suggested_filename)
           print(f"Saving test screenshot to '{filename}'...")
           page.screenshot(path=filename)
 
-      suggested_filename = f'image_{(idx + 1):>03d}.png'
+      suggested_filename = f'image_{(url_idx + 1):>03d}.png'
       filename = output_folder / Path(suggested_filename)
       print(f"Saving screenshot to '{filename}'...")
       page.screenshot(clip=image_clip_rect, path=filename)
