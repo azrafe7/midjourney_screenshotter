@@ -103,6 +103,11 @@ if __name__ == "__main__":
     print(f"Loading links from '{args.metadata}'...")
     url_links, url_indices = load_links_from(args.metadata, url_indices)
 
+  # set env var PW_TEST_SCREENSHOT_NO_FONTS_READY=1 to avoid getting stuck taking screenshot
+  # see https://github.com/microsoft/playwright/issues/28995#issuecomment-2088563563
+  print("Setting os.environ['PW_TEST_SCREENSHOT_NO_FONTS_READY'] = '1'")
+  os.environ['PW_TEST_SCREENSHOT_NO_FONTS_READY'] = "1"
+
   with sync_playwright() as p:
     print("Launching " + ("Headless " if settings.HEADLESS_BROWSER else "") + "Browser...")
 
@@ -222,7 +227,7 @@ if __name__ == "__main__":
         screenshot_filename = output_folder / Path(suggested_filename)
         print(f"Saving full page screenshot to '{screenshot_filename}'...")
         page.screenshot(path=screenshot_filename, full_page=True)
-        # ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=RESIZE_WIDTH, height=RESIZE_HEIGHT, scaling_algo=SCALING_ALGO, keep_temp=SCALING_KEEP_TEMP)
+        ffmpeg_resize_image(screenshot_filename, screenshot_filename, width=settings.RESIZE_WIDTH, height=-1, scaling_algo=settings.SCALING_ALGO, keep_temp=settings.SCALING_KEEP_TEMP)
         viewport_size = {"width": settings.VIEWPORT_WIDTH, "height": settings.VIEWPORT_HEIGHT}
         print(f"Resetting viewport size to {viewport_size}...")
         page.set_viewport_size(viewport_size)  # reset viewport size
