@@ -11,7 +11,18 @@ import dateutil
 import ffmpeg
 import json
 import time
+from PIL import Image
 
+
+def get_image_size(filepath):
+  with Image.open(filepath) as img: 
+    iw, ih = img.size
+  return [iw, ih]
+
+# get file size in bytes
+def get_file_size(filepath):
+  path = Path(filepath)
+  return path.stat().st_size
 
 def set_preferred_theme(page, preferred_theme):
   page.locator('html').evaluate('(node, preferred_theme) => { node.classList.remove("dark", "light"); node.classList.add(preferred_theme); }', arg=preferred_theme)
@@ -252,6 +263,8 @@ if __name__ == "__main__":
     num_links_to_process = settings.MAX_LINKS_TO_PROCESS if settings.MAX_LINKS_TO_PROCESS >= 0 else num_links_to_process
     print(f"Links to process: {num_links_to_process}/{num_items}")
 
+    warn_screenshot_paths = []
+
     for idx, (url_idx, item) in enumerate(zip(url_indices, links_to_process[:num_links_to_process])):
 
       ## try to download images directly
@@ -299,7 +312,18 @@ if __name__ == "__main__":
       filename = output_folder / Path(suggested_filename)
       print(f"Saving screenshot to '{filename}'...")
       page.screenshot(clip=image_clip_rect, path=filename)
+      file_size = get_file_size(filename)
+      #if file_size < settings.WARN_SIZE_THRESHOLD:
+      #  print(f"[WARN] '{filename}' size ({(file_size / 1024):.2f}kb) < WARN_SIZE_THRESHOLD ({(settings.WARN_SIZE_THRESHOLD / 1024):.2f}kb)!")
+      #  warn_screenshot_paths.append(filename)
       ffmpeg_resize_image(filename, filename, width=settings.RESIZE_WIDTH, height=settings.RESIZE_HEIGHT, scaling_algo=settings.SCALING_ALGO, keep_temp=settings.SCALING_KEEP_TEMP)
+
+    # warnings
+    #if len(warn_screenshot_paths) > 0:
+    #  print("")
+    #  print(f"WARNINGS: {len(warn_screenshot_paths)}")
+    #  for idx, screenshot_path in enumerate(warn_screenshot_paths):
+    #    print(f"[{idx + 1}/{len(warn_screenshot_paths)}] {screenshot_path}")
 
     print("")
     elapsed_time = time.time() - start_time
