@@ -3,8 +3,8 @@ MIDJOURNEY_URL = "https://www.midjourney.com/showcase"
 
 # USER_AGENT = "Mozilla/5.0 (Linux; Android 8.0.0; MI 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.101 Mobile Safari/537.36"
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.75 Safari/537.36"
-HEADLESS_BROWSER = False
-THEME = 'dark'  # 'dark'/'light'
+HEADLESS_BROWSER = True
+THEME = 'light'  # 'dark'/'light'
 DEFAULT_TIMEOUT = 0
 OUTPUT_FOLDER = 'images/'  # or specify one with -o <output_folder>
 

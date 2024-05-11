@@ -46,8 +46,14 @@ def ffmpeg_resize_image(input_file, output_file, width, height, scaling_algo="bi
   output_file_path = Path(output_file)
   needs_temp_file = input_file_path == output_file_path
   if needs_temp_file:
+    # make temp folder
+    temp_folder = Path(settings.OUTPUT_FOLDER) / Path("temp/")
+    temp_folder.mkdir(parents=True, exist_ok=True)
+    # print(f"Temp folder: '{temp_folder}'")
+
     stem = Path(input_file_path).stem
-    input_file_path = Path(input_file_path).with_stem(stem + '_temp')
+    input_file_name = Path(input_file_path).name
+    input_file_path = temp_folder / Path(input_file_name).with_stem(stem + '_temp')
     shutil.copy(original_input_file_path, input_file_path)  # copy to temp
 
   cmd = (
@@ -141,6 +147,10 @@ if __name__ == "__main__":
     output_folder = Path(settings.OUTPUT_FOLDER)
     output_folder.mkdir(parents=True, exist_ok=True)
     print(f"Output folder: '{output_folder}'")
+    # make temp folder
+    temp_folder = Path(settings.OUTPUT_FOLDER) / Path("temp/")
+    temp_folder.mkdir(parents=True, exist_ok=True)
+    print(f"Temp folder: '{temp_folder}'")
 
     if not url_links:
       print(f"Going to '{settings.MIDJOURNEY_URL}'...")
@@ -304,7 +314,7 @@ if __name__ == "__main__":
 
       if idx == 0:
         suggested_filename = f'image_{(url_idx + 1):>03d}_full_temp.png'
-        filename = output_folder / Path(suggested_filename)
+        filename = temp_folder / Path(suggested_filename).name
         print(f"Saving test screenshot to '{filename}'...")
         page.screenshot(path=filename)
 
